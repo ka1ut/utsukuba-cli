@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import ora from "ora";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   calculateAcademicSummary,
@@ -293,6 +293,34 @@ export function createCli(): Command {
     })());
 
   const requirements = program.command("requirements").description("Graduation requirement commands");
+  requirements.command("init")
+    .option("--file <path>", "output RequirementSpec JSON file", "requirements.json")
+    .option("--program <name>", "program / college name", "未設定")
+    .option("--admission-year <year>", "admission year", new Date().getFullYear().toString())
+    .description("Create an editable RequirementSpec JSON template")
+    .action((cmd) => run("Creating requirements template", async () => {
+      if (existsSync(cmd.file)) throw new Error(`Requirements file already exists: ${cmd.file}`);
+      const spec: RequirementSpec = {
+        program: cmd.program,
+        admissionYear: cmd.admissionYear,
+        categories: [
+          {
+            id: "example",
+            name: "要編集: 科目区分名",
+            minCredits: 0,
+            coursePrefixes: [],
+            courseCodes: [],
+          },
+        ],
+        courseRules: [],
+        notes: [
+          "このファイルを履修要件に合わせて編集してから `utsukuba requirements import --file requirements.json` を実行してください。",
+          "公式ページは `utsukuba requirements fetch-handbook --year 2025 --pretty` で確認できます。",
+        ],
+      };
+      writeFileSync(cmd.file, `${JSON.stringify(spec, null, 2)}\n`, "utf8");
+      return { file: cmd.file, next: `edit ${cmd.file}, then run: utsukuba requirements import --file ${cmd.file}` };
+    })());
   requirements.command("fetch-handbook")
     .requiredOption("--year <year>", "handbook year, e.g. 2025")
     .description("Fetch the official Tsukuba graduate handbook page")
@@ -308,7 +336,7 @@ export function createCli(): Command {
     .option("--name <name>", "stored requirement name", "default")
     .description("Import a structured RequirementSpec JSON file")
     .action((cmd) => run("Importing requirements", async () => {
-      const spec = readJson<RequirementSpec>(cmd.file);
+      const spec = readJson<RequirementSpec>(cmd.file, `Requirements file not found: ${cmd.file}. Create a template with: utsukuba requirements init --file ${cmd.file}`);
       const path = requirementPath(serviceConfig("twins"), cmd.name);
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, `${JSON.stringify(spec, null, 2)}\n`, "utf8");
@@ -317,7 +345,7 @@ export function createCli(): Command {
   requirements.command("show")
     .option("--name <name>", "stored requirement name", "default")
     .description("Show imported requirements")
-    .action((cmd) => run("Loading requirements", async () => readJson<RequirementSpec>(requirementPath(serviceConfig("twins"), cmd.name)))());
+    .action((cmd) => run("Loading requirements", async () => readRequirementSpec(serviceConfig("twins"), cmd.name))());
 
   const plan = program.command("plan").description("Course planning commands");
   plan.command("progress")
@@ -327,7 +355,7 @@ export function createCli(): Command {
     .description("Calculate requirement progress")
     .action((cmd) => run("Calculating progress", async () => {
       const config = serviceConfig("twins");
-      const requirement = readJson<RequirementSpec>(requirementPath(config, cmd.requirements));
+      const requirement = readRequirementSpec(config, cmd.requirements);
       const client = createTwinsClient(config);
       const grades = cmd.grades ? readJson<TwinGrade[]>(cmd.grades) : await client.grades.list();
       const registrations = cmd.registrations ? readJson<TwinRegistration[]>(cmd.registrations) : await client.registrations.list();
@@ -341,8 +369,8 @@ export function createCli(): Command {
     .description("Recommend courses from KDB candidates and current progress")
     .action((cmd) => run("Recommending courses", async () => {
       const config = serviceConfig("twins");
-      const requirement = readJson<RequirementSpec>(requirementPath(config, cmd.requirements));
-      const courses = readJson<KdbCourse[]>(cmd.courses);
+      const requirement = readRequirementSpec(config, cmd.requirements);
+      const courses = readJson<KdbCourse[]>(cmd.courses, `KDB course JSON not found: ${cmd.courses}. Create it with: utsukuba kdb courses --year <year> --query <query> --pretty > ${cmd.courses}`);
       const client = createTwinsClient(config);
       const grades = cmd.grades ? readJson<TwinGrade[]>(cmd.grades) : await client.grades.list();
       const registrations = cmd.registrations ? readJson<TwinRegistration[]>(cmd.registrations) : await client.registrations.list();
@@ -352,8 +380,17 @@ export function createCli(): Command {
   return program;
 }
 
-function readJson<T>(path: string): T {
+function readJson<T>(path: string, missingMessage?: string): T {
+  if (!existsSync(path)) throw new Error(missingMessage ?? `JSON file not found: ${path}`);
   return JSON.parse(readFileSync(path, "utf8")) as T;
+}
+
+function readRequirementSpec(config: AppConfig, name: string): RequirementSpec {
+  const path = requirementPath(config, name);
+  return readJson<RequirementSpec>(
+    path,
+    `No imported requirements found for profile "${config.profile}" and name "${name}". Create/edit a template with \`utsukuba requirements init --file requirements.json\`, then import it with \`utsukuba requirements import --file requirements.json --name ${name}\`.`,
+  );
 }
 
 function requirementPath(config: AppConfig, name: string): string {
