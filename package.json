@@ -1,0 +1,26 @@
+{
+  "name": "manaba-cli",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "bun run packages/cli/src/index.ts",
+    "build": "bun run build:binary",
+    "build:binary": "bun build --compile --outfile dist/utsukuba packages/cli/src/index.ts",
+    "test": "bun test --workspaces",
+    "typecheck": "bun run --filter '*' typecheck"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "commander": "^12.1.0",
+    "ora": "^8.1.1",
+    "picocolors": "^1.1.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.2"
+  }
+}
