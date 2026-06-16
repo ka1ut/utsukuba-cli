@@ -87,6 +87,13 @@ test("login follows Tsukuba IdP proceed form and stores returned cookies", async
   expect(calls.some((call) => call.body?.includes("j_password=secret"))).toBe(true);
 });
 
+test("manaba commands tell users to run utsukuba login when no profile is saved", async () => {
+  const config = loadConfig({ homeDir: `/tmp/manaba-cli-missing-${crypto.randomUUID()}` });
+  const client = createManabaClient(config);
+
+  await expect(client.tasks.list()).rejects.toThrow("Not logged in to manaba. Run `utsukuba login` or `utsukuba manaba login` first.");
+});
+
 function redirect(location: string, setCookie?: string): Response {
   const headers = new Headers({ location });
   if (setCookie) headers.append("set-cookie", setCookie);

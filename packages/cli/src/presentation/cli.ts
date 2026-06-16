@@ -85,6 +85,100 @@ export function createCli(): Command {
     };
   };
 
+  const loginAction = async (cmd: { check?: boolean; username?: string; password?: string; saveCredentials?: boolean }) => {
+    const ctx = deps();
+    try {
+      if (cmd.check) {
+        const result = await ctx.client.auth.check();
+        printData(result, ctx.opts);
+        process.exitCode = result.ok ? 0 : 2;
+        return;
+      }
+
+      const username = cmd.username ?? await promptText("manaba ID");
+      const password = cmd.password ?? await promptPassword("Password");
+      const profile = await ctx.client.auth.login({
+        username,
+        password,
+        saveCredentials: cmd.saveCredentials,
+      });
+      printData({
+        profile: profile.profile,
+        username: profile.username,
+        credentialStored: profile.credentialStored,
+        cookies: profile.cookies.length,
+        savedAt: profile.savedAt,
+      }, ctx.opts);
+    } catch (error) {
+      printError(error);
+      process.exitCode = 1;
+    }
+  };
+
+  const addManabaCommands = (parent: Command) => {
+    parent
+      .command("login")
+      .description("Authenticate and save session cookies; credentials are stored in macOS Keychain by default")
+      .option("--username <id>", "university user ID")
+      .option("--password <password>", "password; prefer interactive prompt")
+      .option("--no-save-credentials", "do not save ID/PASS in macOS Keychain for refresh")
+      .option("--check", "only validate current saved auth")
+      .action(loginAction);
+
+    parent.command("logout").description("Remove saved auth profile and Keychain credentials").action(run("Logging out", ({ client }) => client.auth.logout(), () => {
+      console.log("Logged out.");
+    }));
+
+    parent.command("doctor").description("Diagnose config and authentication").action(run("Running doctor", async ({ config, client }) => {
+      const auth = await client.auth.check();
+      return {
+        package: "utsukuba-cli",
+        service: "manaba",
+        baseUrl: config.baseUrl,
+        profile: config.profile,
+        authFile: config.authFile,
+        auth,
+      };
+    }));
+
+    const courses = parent.command("courses").description("Course commands");
+    courses.command("list").description("List courses").action(run("Fetching courses", ({ client }) => client.courses.list()));
+    courses.command("show <courseId>").description("Show course metadata").action((courseId) => run("Fetching course", ({ client }) => client.courses.show(courseId))());
+
+    const tasks = parent.command("tasks").description("Task commands");
+    tasks.command("list")
+      .description("List unfinished tasks")
+      .option("--type <type>", "all|query|survey|report|project", "all")
+      .option("--hidden", "include hidden task page if available")
+      .action((cmd) => run("Fetching tasks", ({ client }) => client.tasks.list({
+        type: cmd.type as TaskType,
+        hidden: cmd.hidden ?? false,
+      }))());
+    tasks.command("show <taskUrlOrId>").description("Show task detail").action((target) => run("Fetching task", ({ client }) => client.tasks.show(target))());
+
+    const quizzes = parent.command("quizzes").description("Quiz commands");
+    quizzes.command("list <courseId>").action((courseId) => run("Fetching quizzes", ({ client }) => client.quizzes.list(courseId))());
+    quizzes.command("show <courseId> <quizId>").action((courseId, quizId) => run("Fetching quiz", ({ client }) => client.quizzes.show(courseId, quizId))());
+
+    const reports = parent.command("reports").description("Report commands");
+    reports.command("list <courseId>").action((courseId) => run("Fetching reports", ({ client }) => client.reports.list(courseId))());
+    reports.command("show <courseId> <reportId>").action((courseId, reportId) => run("Fetching report", ({ client }) => client.reports.show(courseId, reportId))());
+
+    const contents = parent.command("contents").description("Course content commands");
+    contents.command("list <courseId>").action((courseId) => run("Fetching contents", ({ client }) => client.contents.list(courseId))());
+    contents.command("show <pageUrlOrId>").action((target) => run("Fetching content", ({ client }) => client.contents.show(target))());
+
+    const files = parent.command("files").description("File commands");
+    files.command("list <target>").description("List files from a course/page/task").action((target) => run("Fetching files", ({ client }) => client.files.list(target))());
+    files.command("download <url>")
+      .description("Download an authenticated file")
+      .requiredOption("--out <dir>", "output directory")
+      .option("--overwrite", "overwrite existing files")
+      .action((url, cmd) => run("Downloading file", ({ client }) => client.files.download(url, cmd.out, {
+        overwrite: cmd.overwrite ?? false,
+      }))());
+  };
+
   program
     .command("login")
     .description("Authenticate and save session cookies; credentials are stored in macOS Keychain by default")
@@ -92,35 +186,7 @@ export function createCli(): Command {
     .option("--password <password>", "password; prefer interactive prompt")
     .option("--no-save-credentials", "do not save ID/PASS in macOS Keychain for refresh")
     .option("--check", "only validate current saved auth")
-    .action(async (cmd) => {
-      const ctx = deps();
-      try {
-        if (cmd.check) {
-          const result = await ctx.client.auth.check();
-          printData(result, ctx.opts);
-          process.exitCode = result.ok ? 0 : 2;
-          return;
-        }
-
-        const username = cmd.username ?? await promptText("manaba ID");
-        const password = cmd.password ?? await promptPassword("Password");
-        const profile = await ctx.client.auth.login({
-          username,
-          password,
-          saveCredentials: cmd.saveCredentials,
-        });
-        printData({
-          profile: profile.profile,
-          username: profile.username,
-          credentialStored: profile.credentialStored,
-          cookies: profile.cookies.length,
-          savedAt: profile.savedAt,
-        }, ctx.opts);
-      } catch (error) {
-        printError(error);
-        process.exitCode = 1;
-      }
-    });
+    .action(loginAction);
 
   program.command("logout").description("Remove saved auth profile and Keychain credentials").action(run("Logging out", ({ client }) => client.auth.logout(), () => {
     console.log("Logged out.");
@@ -173,6 +239,8 @@ export function createCli(): Command {
     .action((url, cmd) => run("Downloading file", ({ client }) => client.files.download(url, cmd.out, {
       overwrite: cmd.overwrite ?? false,
     }))());
+
+  addManabaCommands(program.command("manaba").description("manaba LMS commands"));
 
   const kdb = program.command("kdb").description("KDB syllabus and course catalog commands");
   kdb.command("courses")

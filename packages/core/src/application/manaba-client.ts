@@ -136,7 +136,7 @@ export class AuthUseCases {
   async requireProfile(): Promise<AuthProfile> {
     const profile = await this.store.load();
     if (!profile) {
-      throw new Error("Not logged in. Run `manaba login` first.");
+      throw new Error("Not logged in to manaba. Run `utsukuba login` or `utsukuba manaba login` first.");
     }
     return profile;
   }
