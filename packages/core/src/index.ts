@@ -1,8 +1,13 @@
 export { createManabaClient } from "./application/manaba-client";
-export { loadConfig } from "./infrastructure/config";
+export { createKdbClient } from "./application/kdb-client";
+export { createTwinsClient } from "./application/twins-client";
+export { calculateAcademicSummary, calculateRequirementProgress, recommendCourses } from "./application/requirements";
+export { loadConfig, loadServiceConfig } from "./infrastructure/config";
 export { AuthStore } from "./infrastructure/auth-store";
 export { CredentialStore } from "./infrastructure/credential-store";
 export { ManabaHttpClient, HttpError } from "./infrastructure/http-client";
 export type * from "./domain/types";
 export type { ManabaClient } from "./application/manaba-client";
+export type { KdbClient } from "./application/kdb-client";
+export type { TwinsClient } from "./application/twins-client";
 export type { LmsProvider } from "./provider";

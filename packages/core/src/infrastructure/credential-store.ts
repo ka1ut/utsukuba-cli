@@ -7,7 +7,7 @@ export type StoredCredentials = {
 };
 
 export class CredentialStore {
-  constructor(private readonly service = "manaba-cli") {}
+  constructor(private readonly service = "utsukuba-cli") {}
 
   isAvailable(): boolean {
     return platform() === "darwin";

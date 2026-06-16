@@ -1,10 +1,28 @@
 import { Command } from "commander";
 import ora from "ora";
-import { createManabaClient, loadConfig } from "@manaba/core";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+  calculateAcademicSummary,
+  calculateRequirementProgress,
+  createKdbClient,
+  createManabaClient,
+  createTwinsClient,
+  loadServiceConfig,
+  recommendCourses,
+} from "@manaba/core";
 import { printData } from "./format";
 import { printError } from "./output";
 import { promptPassword, promptText } from "./prompts";
-import type { AppConfig, ManabaClient, TaskType } from "@manaba/core";
+import type {
+  AppConfig,
+  KdbCourse,
+  ManabaClient,
+  RequirementSpec,
+  TaskType,
+  TwinGrade,
+  TwinRegistration,
+} from "@manaba/core";
 
 type GlobalOptions = {
   profile?: string;
@@ -23,8 +41,8 @@ type Deps = {
 export function createCli(): Command {
   const program = new Command();
   program
-    .name("manaba")
-    .description("Read-only CLI for manaba")
+    .name("utsukuba")
+    .description("Read-only CLI for University of Tsukuba systems")
     .option("--profile <name>", "auth profile name")
     .option("--base-url <url>", "manaba /ct base URL")
     .option("--json", "output compact JSON")
@@ -33,12 +51,21 @@ export function createCli(): Command {
 
   const deps = (): Deps => {
     const opts = program.opts<GlobalOptions>();
-    const config = loadConfig({
+    const config = loadServiceConfig("manaba", {
       profile: opts.profile,
       baseUrl: opts.baseUrl,
       debug: opts.debug,
     });
     return { opts, config, client: createManabaClient(config) };
+  };
+
+  const serviceConfig = (service: "kdb" | "twins", baseUrl?: string): AppConfig => {
+    const opts = program.opts<GlobalOptions>();
+    return loadServiceConfig(service, {
+      profile: opts.profile,
+      baseUrl,
+      debug: opts.debug,
+    });
   };
 
   const run = <T>(label: string, action: (ctx: Deps) => Promise<T>, render?: (data: T, ctx: Deps) => void) => {
@@ -102,7 +129,7 @@ export function createCli(): Command {
   program.command("doctor").description("Diagnose config and authentication").action(run("Running doctor", async ({ config, client }) => {
     const auth = await client.auth.check();
     return {
-      package: "manaba-cli",
+      package: "utsukuba-cli",
       baseUrl: config.baseUrl,
       profile: config.profile,
       authFile: config.authFile,
@@ -147,5 +174,188 @@ export function createCli(): Command {
       overwrite: cmd.overwrite ?? false,
     }))());
 
+  const kdb = program.command("kdb").description("KDB syllabus and course catalog commands");
+  kdb.command("courses")
+    .description("Search KDB courses")
+    .requiredOption("--year <year>", "academic year, e.g. 2026")
+    .option("--query <text>", "keyword, course code, or teacher")
+    .option("--term <code>", "KDB term code")
+    .option("--day <code>", "KDB day code")
+    .option("--period <code>", "KDB period code")
+    .option("--include-syllabus", "search overview, remarks, and syllabi")
+    .option("--english", "conducted in English")
+    .option("--base-url <url>", "KDB base URL")
+    .action((cmd) => run("Searching KDB", async () => {
+      const client = createKdbClient(serviceConfig("kdb", cmd.baseUrl));
+      return client.courses.search({
+        year: cmd.year,
+        query: cmd.query,
+        term: cmd.term,
+        day: cmd.day,
+        period: cmd.period,
+        includeSyllabus: cmd.includeSyllabus ?? false,
+        conductedInEnglish: cmd.english ?? false,
+      });
+    })());
+
+  const syllabus = kdb.command("syllabus").description("KDB syllabus commands");
+  syllabus.command("show <courseCode>")
+    .description("Show a structured syllabus")
+    .requiredOption("--year <year>", "academic year, e.g. 2026")
+    .option("--subcourse <id>", "subcourse id", "0")
+    .option("--lang <lang>", "jpn|eng", "jpn")
+    .option("--base-url <url>", "KDB base URL")
+    .action((courseCode, cmd) => run("Fetching syllabus", async () => {
+      const client = createKdbClient(serviceConfig("kdb", cmd.baseUrl));
+      return client.syllabus.show(courseCode, {
+        year: cmd.year,
+        subcourse: cmd.subcourse,
+        language: cmd.lang,
+      });
+    })());
+  syllabus.command("html <courseCode>")
+    .description("Print raw KDB syllabus HTML")
+    .requiredOption("--year <year>", "academic year, e.g. 2026")
+    .option("--subcourse <id>", "subcourse id", "0")
+    .option("--lang <lang>", "jpn|eng", "jpn")
+    .option("--base-url <url>", "KDB base URL")
+    .action((courseCode, cmd) => run("Fetching syllabus HTML", async () => {
+      const client = createKdbClient(serviceConfig("kdb", cmd.baseUrl));
+      return client.syllabus.html(courseCode, {
+        year: cmd.year,
+        subcourse: cmd.subcourse,
+        language: cmd.lang,
+      });
+    }, (html) => console.log(html))());
+
+  const twins = program.command("twins").description("TWINS / CAMPUSSQUARE commands");
+  twins.command("login")
+    .description("Authenticate to TWINS; credentials are shared with utsukuba profile")
+    .option("--username <id>", "university user ID")
+    .option("--password <password>", "password; prefer interactive prompt")
+    .option("--no-save-credentials", "do not save credentials in macOS Keychain")
+    .option("--base-url <url>", "TWINS base URL")
+    .action(async (cmd) => {
+      const opts = program.opts<GlobalOptions>();
+      const config = serviceConfig("twins", cmd.baseUrl);
+      const client = createTwinsClient(config);
+      try {
+        const username = cmd.username ?? await promptText("TWINS ID");
+        const password = cmd.password ?? await promptPassword("Password");
+        const profile = await client.auth.login({ username, password, saveCredentials: cmd.saveCredentials });
+        printData({
+          profile: profile.profile,
+          username: profile.username,
+          credentialStored: profile.credentialStored,
+          cookies: profile.cookies.length,
+          savedAt: profile.savedAt,
+        }, opts);
+      } catch (error) {
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+  twins.command("doctor").description("Diagnose TWINS authentication").action(run("Checking TWINS", async () => {
+    const config = serviceConfig("twins");
+    const client = createTwinsClient(config);
+    return { service: "twins", baseUrl: config.baseUrl, profile: config.profile, auth: await client.auth.check() };
+  }));
+  twins.command("html")
+    .description("Fetch an authenticated TWINS page")
+    .option("--url <pathOrUrl>", "path or URL", "portal.do?page=main")
+    .action((cmd) => run("Fetching TWINS page", async () => createTwinsClient(serviceConfig("twins")).pages.html(cmd.url), (html) => {
+      console.log(html);
+    })());
+  twins.command("menus")
+    .description("List detected TWINS / CAMPUSSQUARE menu links")
+    .action(() => run("Fetching TWINS menus", async () => createTwinsClient(serviceConfig("twins")).menus.list())());
+  twins.command("profile")
+    .description("Parse student profile from a TWINS page")
+    .option("--url <pathOrUrl>", "path or URL; auto-detected from menu when omitted")
+    .action((cmd) => run("Fetching TWINS profile", async () => createTwinsClient(serviceConfig("twins")).profile.show(cmd.url))());
+  twins.command("registrations")
+    .description("Parse current registrations from a TWINS page")
+    .option("--url <pathOrUrl>", "path or URL containing registration table; auto-detected from menu when omitted")
+    .action((cmd) => run("Fetching TWINS registrations", async () => createTwinsClient(serviceConfig("twins")).registrations.list(cmd.url))());
+  twins.command("grades")
+    .description("Parse grades from a TWINS page")
+    .option("--url <pathOrUrl>", "path or URL containing grades table; auto-detected from menu when omitted")
+    .action((cmd) => run("Fetching TWINS grades", async () => createTwinsClient(serviceConfig("twins")).grades.list(cmd.url))());
+  twins.command("summary")
+    .description("Calculate GPA and credit totals from TWINS grades")
+    .option("--grades <file>", "TwinGrade JSON file; defaults to live TWINS")
+    .option("--registrations <file>", "TwinRegistration JSON file; defaults to live TWINS")
+    .action((cmd) => run("Calculating TWINS academic summary", async () => {
+      const client = createTwinsClient(serviceConfig("twins"));
+      const grades = cmd.grades ? readJson<TwinGrade[]>(cmd.grades) : await client.grades.list();
+      const registrations = cmd.registrations ? readJson<TwinRegistration[]>(cmd.registrations) : await client.registrations.list();
+      return calculateAcademicSummary({ grades, registrations });
+    })());
+
+  const requirements = program.command("requirements").description("Graduation requirement commands");
+  requirements.command("fetch-handbook")
+    .requiredOption("--year <year>", "handbook year, e.g. 2025")
+    .description("Fetch the official Tsukuba graduate handbook page")
+    .action((cmd) => run("Fetching handbook", async () => {
+      const url = `https://www.tsukuba.ac.jp/education/g-courses-handbook/${cmd.year}rishu.html`;
+      const res = await fetch(url);
+      const html = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+      return { url, html };
+    })());
+  requirements.command("import")
+    .requiredOption("--file <path>", "RequirementSpec JSON file")
+    .option("--name <name>", "stored requirement name", "default")
+    .description("Import a structured RequirementSpec JSON file")
+    .action((cmd) => run("Importing requirements", async () => {
+      const spec = readJson<RequirementSpec>(cmd.file);
+      const path = requirementPath(serviceConfig("twins"), cmd.name);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, `${JSON.stringify(spec, null, 2)}\n`, "utf8");
+      return { name: cmd.name, path, program: spec.program, admissionYear: spec.admissionYear };
+    })());
+  requirements.command("show")
+    .option("--name <name>", "stored requirement name", "default")
+    .description("Show imported requirements")
+    .action((cmd) => run("Loading requirements", async () => readJson<RequirementSpec>(requirementPath(serviceConfig("twins"), cmd.name)))());
+
+  const plan = program.command("plan").description("Course planning commands");
+  plan.command("progress")
+    .option("--requirements <name>", "stored requirement name", "default")
+    .option("--grades <file>", "TwinGrade JSON file; defaults to live TWINS")
+    .option("--registrations <file>", "TwinRegistration JSON file; defaults to live TWINS")
+    .description("Calculate requirement progress")
+    .action((cmd) => run("Calculating progress", async () => {
+      const config = serviceConfig("twins");
+      const requirement = readJson<RequirementSpec>(requirementPath(config, cmd.requirements));
+      const client = createTwinsClient(config);
+      const grades = cmd.grades ? readJson<TwinGrade[]>(cmd.grades) : await client.grades.list();
+      const registrations = cmd.registrations ? readJson<TwinRegistration[]>(cmd.registrations) : await client.registrations.list();
+      return calculateRequirementProgress(requirement, { grades, registrations });
+    })());
+  plan.command("recommend")
+    .requiredOption("--courses <file>", "KdbCourse JSON file from `kdb courses --json`")
+    .option("--requirements <name>", "stored requirement name", "default")
+    .option("--grades <file>", "TwinGrade JSON file; defaults to live TWINS")
+    .option("--registrations <file>", "TwinRegistration JSON file; defaults to live TWINS")
+    .description("Recommend courses from KDB candidates and current progress")
+    .action((cmd) => run("Recommending courses", async () => {
+      const config = serviceConfig("twins");
+      const requirement = readJson<RequirementSpec>(requirementPath(config, cmd.requirements));
+      const courses = readJson<KdbCourse[]>(cmd.courses);
+      const client = createTwinsClient(config);
+      const grades = cmd.grades ? readJson<TwinGrade[]>(cmd.grades) : await client.grades.list();
+      const registrations = cmd.registrations ? readJson<TwinRegistration[]>(cmd.registrations) : await client.registrations.list();
+      return recommendCourses(requirement, courses, { grades, registrations });
+    })());
+
   return program;
+}
+
+function readJson<T>(path: string): T {
+  return JSON.parse(readFileSync(path, "utf8")) as T;
+}
+
+function requirementPath(config: AppConfig, name: string): string {
+  return join(config.homeDir, "profiles", config.profile, "requirements", `${name}.json`);
 }

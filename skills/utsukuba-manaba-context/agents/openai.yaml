@@ -1,0 +1,4 @@
+interface:
+  display_name: "Utsukuba Manaba Context"
+  short_description: "Join manaba courses with KDB syllabi"
+  default_prompt: "Use $utsukuba-manaba-context to enrich my manaba course data with KDB syllabus context."

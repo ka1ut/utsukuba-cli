@@ -23,6 +23,8 @@ export type AppConfig = {
   debug: boolean;
 };
 
+export type Service = "manaba" | "twins" | "kdb";
+
 export type CourseTab = "query" | "survey" | "report" | "project" | "grade" | "topics" | "page";
 
 export type CourseSummary = {
@@ -93,4 +95,114 @@ export type DownloadResult = {
   path: string;
   bytes: number;
   url: string;
+};
+
+export type KdbCourse = {
+  code: string;
+  subcourse: string;
+  title: string;
+  credits: number;
+  year: string;
+  syllabusUrl: string;
+  grade?: string;
+  term?: string;
+  dayPeriod?: string;
+  instructor?: string;
+  overview?: string;
+  remarks?: string;
+};
+
+export type KdbSyllabus = {
+  code: string;
+  title: string;
+  year: string;
+  language: "jpn" | "eng";
+  summary?: string;
+  aims?: string;
+  keywords: string[];
+  topics: Array<{ label: string; title: string }>;
+  textbooks: string[];
+  officeHours?: string;
+};
+
+export type StudentProfile = {
+  studentId?: string;
+  affiliation?: string;
+  program?: string;
+  gradeYear?: number;
+};
+
+export type TwinRegistration = {
+  courseCode: string;
+  title: string;
+  year?: string;
+  term?: string;
+  credits: number;
+  status?: string;
+};
+
+export type TwinGrade = {
+  courseCode: string;
+  title: string;
+  year?: string;
+  credits: number;
+  grade?: string;
+  passed: boolean;
+};
+
+export type RequirementCategory = {
+  id: string;
+  name: string;
+  minCredits: number;
+  coursePrefixes?: string[];
+  courseCodes?: string[];
+};
+
+export type RequirementSpec = {
+  program: string;
+  admissionYear: string;
+  categories: RequirementCategory[];
+  courseRules: Array<Record<string, unknown>>;
+  notes: string[];
+};
+
+export type RequirementProgress = {
+  categoryId: string;
+  categoryName: string;
+  requiredCredits: number;
+  earnedCredits: number;
+  inProgressCredits: number;
+  shortageCredits: number;
+  matchedCourses: string[];
+};
+
+export type AcademicYearSummary = {
+  year: string;
+  gpa?: number;
+  gpaCredits: number;
+  gpaPoints: number;
+  earnedCredits: number;
+  failedCredits: number;
+  inProgressCredits: number;
+};
+
+export type AcademicSummary = {
+  gpa?: number;
+  gpaCredits: number;
+  gpaPoints: number;
+  earnedCredits: number;
+  failedCredits: number;
+  inProgressCredits: number;
+  gradeRows: number;
+  registrationCount: number;
+  years: AcademicYearSummary[];
+};
+
+export type CourseRecommendation = {
+  courseCode: string;
+  title: string;
+  credits: number;
+  matchedCategoryIds: string[];
+  reasons: string[];
+  syllabusUrl: string;
 };

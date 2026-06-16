@@ -1,0 +1,4 @@
+interface:
+  display_name: "Utsukuba Course Planning"
+  short_description: "Plan courses with TWINS and KDB data"
+  default_prompt: "Use $utsukuba-course-planning to analyze my TWINS progress and recommend courses."

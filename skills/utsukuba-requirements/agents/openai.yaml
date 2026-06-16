@@ -1,0 +1,4 @@
+interface:
+  display_name: "Utsukuba Requirements"
+  short_description: "Structure Tsukuba degree requirements"
+  default_prompt: "Use $utsukuba-requirements to convert my Tsukuba requirements document into CLI-ready JSON."

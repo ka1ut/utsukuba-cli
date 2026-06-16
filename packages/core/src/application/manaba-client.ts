@@ -49,7 +49,7 @@ export function createManabaClient(
 ): ManabaClient {
   const http = deps.http ?? new ManabaHttpClient(config);
   const authStore = deps.authStore ?? new AuthStore(config);
-  const credentialStore = deps.credentialStore ?? new CredentialStore();
+  const credentialStore = deps.credentialStore ?? new CredentialStore("utsukuba-cli");
   const auth = new AuthUseCases(config, http, authStore, credentialStore);
 
   return {

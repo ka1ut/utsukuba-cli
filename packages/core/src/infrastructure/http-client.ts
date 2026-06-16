@@ -151,7 +151,7 @@ export class ManabaHttpClient {
     const headers: Record<string, string> = {
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
-      "User-Agent": "manaba-cli/0.1 (+https://github.com/local/manaba-cli)",
+      "User-Agent": "utsukuba-cli/0.1 (+https://github.com/local/utsukuba-cli)",
     };
     const cookie = this.cookieHeader(cookies);
     if (cookie) headers.Cookie = cookie;
