@@ -44,6 +44,31 @@ test("calculateRequirementProgress counts passed grades and in-progress registra
   ]);
 });
 
+test("calculateRequirementProgress uses in-progress grade credits when registration credits are unavailable", () => {
+  const mediaRequirement: RequirementSpec = {
+    program: "情報メディア創成学類",
+    admissionYear: "2025",
+    categories: [{ id: "foundation", name: "専門基礎", minCredits: 4, coursePrefixes: ["GC"] }],
+    courseRules: [],
+    notes: [],
+  };
+
+  expect(calculateRequirementProgress(mediaRequirement, {
+    grades: [{ courseCode: "GC11601", title: "確率と統計", year: "2026", credits: 2, grade: "履修中", passed: false }],
+    registrations: [{ courseCode: "GC11601", title: "確率と統計", year: "2026", term: "春B", credits: 0, status: "履修中" }],
+  })).toEqual([
+    {
+      categoryId: "foundation",
+      categoryName: "専門基礎",
+      requiredCredits: 4,
+      earnedCredits: 0,
+      inProgressCredits: 2,
+      shortageCredits: 2,
+      matchedCourses: ["GC11601"],
+    },
+  ]);
+});
+
 test("recommendCourses excludes completed and in-progress courses and ranks requirement matches", () => {
   const courses: KdbCourse[] = [
     { code: "GC11601", subcourse: "0", title: "確率と統計", credits: 2, year: "2026", syllabusUrl: "https://kdb.tsukuba.ac.jp/syllabi/2026/GC11601/jpn/0/" },

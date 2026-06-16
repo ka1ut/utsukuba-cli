@@ -78,7 +78,10 @@ export function calculateAcademicSummary(record: AcademicRecord): AcademicSummar
 export function calculateRequirementProgress(requirement: RequirementSpec, record: AcademicRecord): RequirementProgress[] {
   return requirement.categories.map((category) => {
     const passed = record.grades.filter((grade) => grade.passed && matchesCategory(grade.courseCode, category));
-    const inProgress = record.registrations.filter((registration) => matchesCategory(registration.courseCode, category));
+    const inProgress = mergeInProgress(
+      record.registrations.filter((registration) => matchesCategory(registration.courseCode, category)),
+      record.grades.filter((grade) => grade.grade === "履修中" && matchesCategory(grade.courseCode, category)),
+    );
     const earnedCredits = sumUniqueCredits(passed);
     const inProgressCredits = sumUniqueCredits(inProgress.filter((registration) => !passed.some((grade) => grade.courseCode === registration.courseCode)));
     const totalUsable = earnedCredits + inProgressCredits;
@@ -138,6 +141,20 @@ function sumUniqueCredits(items: Array<{ courseCode: string; credits: number }>)
     total += item.credits;
   }
   return total;
+}
+
+function mergeInProgress(registrations: TwinRegistration[], grades: TwinGrade[]): Array<{ courseCode: string; credits: number }> {
+  const creditsByCode = new Map(grades.map((grade) => [grade.courseCode, grade.credits]));
+  const merged = registrations.map((registration) => ({
+    courseCode: registration.courseCode,
+    credits: registration.credits || creditsByCode.get(registration.courseCode) || 0,
+  }));
+  const seen = new Set(merged.map((item) => item.courseCode));
+  for (const grade of grades) {
+    if (seen.has(grade.courseCode)) continue;
+    merged.push({ courseCode: grade.courseCode, credits: grade.credits });
+  }
+  return merged;
 }
 
 function unique(values: string[]): string[] {
