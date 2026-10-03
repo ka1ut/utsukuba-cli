@@ -1,4 +1,4 @@
-import { closeSync, openSync, writeFileSync, mkdirSync } from "node:fs";
+import { closeSync, fchmodSync, openSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { AppConfig, AuthProfile } from "../domain/types";
 
@@ -15,6 +15,7 @@ export class AuthStore {
     mkdirSync(dirname(this.config.authFile), { recursive: true, mode: 0o700 });
     const fd = openSync(this.config.authFile, "w", 0o600);
     try {
+      fchmodSync(fd, 0o600);
       writeFileSync(fd, `${JSON.stringify(profile, null, 2)}\n`, "utf8");
     } finally {
       closeSync(fd);

@@ -135,7 +135,7 @@ export class TwinsAuthUseCases {
   async refresh(): Promise<AuthProfile> {
     const profile = await this.requireProfile();
     const stored = this.credentials.load(this.config.profile, profile.username);
-    if (!stored) throw new Error("No saved Keychain credentials for this profile.");
+    if (!stored) throw new Error("No saved credentials for this profile.");
     return this.login({ username: stored.username, password: stored.password, saveCredentials: true });
   }
 

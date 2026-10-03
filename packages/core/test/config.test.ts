@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { chmodSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig } from "../src/infrastructure/config";
@@ -40,6 +40,10 @@ test("AuthStore writes profile auth with owner-only permissions", async () => {
     credentialStored: true,
     savedAt: "2026-06-16T00:00:00.000Z",
   });
+
+  // Replacing a previously permissive cookie file must restore owner-only access.
+  chmodSync(config.authFile, 0o644);
+  await store.save((await store.load())!);
 
   const loaded = await store.load();
   const stat = await Bun.file(config.authFile).stat();

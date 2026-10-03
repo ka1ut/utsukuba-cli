@@ -12,10 +12,10 @@ export async function promptText(label: string): Promise<string> {
 }
 
 export async function promptPassword(label: string): Promise<string> {
-  if (!process.stdin.isTTY) return promptText(label);
+  if (!process.stdin.isTTY) throw new Error("Enter the password in an interactive SSH terminal.");
 
-  const rl = createInterface({ input, output });
   setEcho(false);
+  const rl = createInterface({ input, output, terminal: false });
   try {
     return await rl.question(`${label}: `);
   } finally {
@@ -26,5 +26,6 @@ export async function promptPassword(label: string): Promise<string> {
 }
 
 function setEcho(enabled: boolean): void {
-  spawnSync("stty", [enabled ? "echo" : "-echo"], { stdio: ["inherit", "ignore", "ignore"] });
+  const result = spawnSync("stty", [enabled ? "echo" : "-echo"], { stdio: ["inherit", "ignore", "ignore"] });
+  if (result.status !== 0) throw new Error("Could not configure terminal password masking.");
 }
