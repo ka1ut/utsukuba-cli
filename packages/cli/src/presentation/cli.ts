@@ -118,14 +118,14 @@ export function createCli(): Command {
   const addManabaCommands = (parent: Command) => {
     parent
       .command("login")
-      .description("Authenticate and save session cookies; credentials are stored in macOS Keychain by default")
+      .description("Authenticate and save session cookies; credentials use macOS Keychain or Linux Secret Manager")
       .option("--username <id>", "university user ID")
       .option("--password <password>", "password; prefer interactive prompt")
-      .option("--no-save-credentials", "do not save ID/PASS in macOS Keychain for refresh")
+      .option("--no-save-credentials", "do not save ID/PASS in the credential store for refresh")
       .option("--check", "only validate current saved auth")
       .action(loginAction);
 
-    parent.command("logout").description("Remove saved auth profile and Keychain credentials").action(run("Logging out", ({ client }) => client.auth.logout(), () => {
+    parent.command("logout").description("Remove saved auth profile and stored credentials").action(run("Logging out", ({ client }) => client.auth.logout(), () => {
       console.log("Logged out.");
     }));
 
@@ -181,14 +181,14 @@ export function createCli(): Command {
 
   program
     .command("login")
-    .description("Authenticate and save session cookies; credentials are stored in macOS Keychain by default")
+    .description("Authenticate and save session cookies; credentials use macOS Keychain or Linux Secret Manager")
     .option("--username <id>", "university user ID")
     .option("--password <password>", "password; prefer interactive prompt")
-    .option("--no-save-credentials", "do not save ID/PASS in macOS Keychain for refresh")
+    .option("--no-save-credentials", "do not save ID/PASS in the credential store for refresh")
     .option("--check", "only validate current saved auth")
     .action(loginAction);
 
-  program.command("logout").description("Remove saved auth profile and Keychain credentials").action(run("Logging out", ({ client }) => client.auth.logout(), () => {
+  program.command("logout").description("Remove saved auth profile and stored credentials").action(run("Logging out", ({ client }) => client.auth.logout(), () => {
     console.log("Logged out.");
   }));
 
@@ -301,7 +301,7 @@ export function createCli(): Command {
     .description("Authenticate to TWINS; credentials are shared with utsukuba profile")
     .option("--username <id>", "university user ID")
     .option("--password <password>", "password; prefer interactive prompt")
-    .option("--no-save-credentials", "do not save credentials in macOS Keychain")
+    .option("--no-save-credentials", "do not save credentials in the credential store")
     .option("--base-url <url>", "TWINS base URL")
     .action(async (cmd) => {
       const opts = program.opts<GlobalOptions>();

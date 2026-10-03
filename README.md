@@ -2,6 +2,9 @@
 
 筑波大学向けの read-only CLI です。manaba、KDB、TWINS/CAMPUSSQUARE、履修要件・履修計画を扱います。
 
+LinuxでのID・パスワード保存にはGoogle Secret Managerを利用できます。
+設定と保存先については[Linux credential storage](docs/linux-credentials.md)を参照してください。
+
 ## Local Development Install
 
 このリポジトリを直接触る開発者向けです。
